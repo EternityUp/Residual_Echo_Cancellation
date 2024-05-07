@@ -15,6 +15,7 @@ function [st, out_frame] = mdf_kalman(st, mic_frame, spk_frame)
     Y_fft_in = [st.Y; conj(st.Y(end-1 :-1:2))];
     st.err_adf = real(ifft(Y_fft_in));
     st.err_adf(1:N) = mic_frame_dc - st.err_adf(N+1:end);
+    initial_out_frame = st.err_adf(1:N);
     if st.mode==2
         st.yy = [zeros(N, 1) ;st.err_adf(N1:end)];
         st.yt = [st.yt(N1:end) ;st.err_adf(N1:end)];
@@ -24,17 +25,17 @@ function [st, out_frame] = mdf_kalman(st, mic_frame, spk_frame)
     st.err_adf = [zeros(N,1);st.err_adf(1:N)];
     err_fft = fft(st.err_adf); 
     Psi_s = abs(err_fft(1:N1)).^2;
-    st.Psi_s = 0.9*st.Psi_s+0.1*Psi_s;
+    st.Psi_s = 0.9*st.Psi_s+0.1*Psi_s; % 近端估计信号的平滑功率谱
     Psi_e = sum(st.P .* X_power, 2)+ st.Psi_s;                                       
     Psi_e = repmat(Psi_e, 1, st.M);
 
     mu = 0.5*st.P./(Psi_e+ 1e-10);                                             
     H = mu .* X_power;
-    H = max(H, 1e-4);
-    H = min(H, 1);
+%     H = max(H, 1e-4);
+%     H = min(H, 1);
     st.P = st.A2.*(1-0.5*H).*st.P + (1-st.A2)*(abs(st.coef_adf).^2);
-    st.P = min(st.P,st.P_MAX);
-    st.P = max(st.P,st.P_MIN);
+%     st.P = min(st.P,st.P_MAX);
+%     st.P = max(st.P,st.P_MIN);
 
     PHI = mu.*conj(st.X).*repmat(err_fft(1:N1),1,st.M);
     st.coef_adf = st.coef_adf + PHI;
@@ -66,7 +67,8 @@ function [st, out_frame] = mdf_kalman(st, mic_frame, spk_frame)
     Ek_Res = err_fft(1:N1).*H_res;
     fft_in_res = [Ek_Res; conj(Ek_Res(end-1 :-1:2))];
     en_t = real(ifft(fft_in_res));
-    out_frame = en_t(N+1:end);
+%     out_frame = en_t(N+1:end);
+    out_frame = initial_out_frame;
 
     function [out,mem] = filter_dc_notch16(in, radius, len, mem)
         out = zeros(size(in));
